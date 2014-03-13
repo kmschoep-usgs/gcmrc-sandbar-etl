@@ -2,9 +2,9 @@
 	<target name="default" depends="areaVolCalcFileUpload, archiveProcessedFiles"/>
 
 	<target name="areaVolCalcFileUpload">
-		<echo>Load the comma-delimited file into area_volume_calc_state</echo>
+		<echo>Load the comma-delimited file into area_volume_calc_stage</echo>
 		<exec executable="sqlldr" failonerror="true">
-			<arg value="sandbar/${sandbar_password}@${instance}"/>
+			<arg value="sandbar/${sandbarPassword}@${instance}"/>
 			<arg value="BAD=${basedir}/uploadCalcs.bad"/>
 			<arg value="DISCARD=${basedir}/uploadCalcs.dsc"/>
 			<arg value="CONTROL=${basedir}/moduploadCalcs.ctl"/>
