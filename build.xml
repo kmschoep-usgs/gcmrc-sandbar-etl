@@ -1,0 +1,20 @@
+<project name="sandbarETL" default="default">
+	<target name="default" depends="areaVolCalcFileUpload, archiveProcessedFiles"/>
+
+	<target name="areaVolCalcFileUpload">
+		<echo>Load the tab demilited flat file into fm_site_dim_excel</echo>
+		<exec executable="sqlldr" failonerror="true">
+			<arg value="sandbar/${sandbar_password}@${instance}"/>
+			<arg value="BAD=${basedir}/uploadCalcs.bad"/>
+			<arg value="DISCARD=${basedir}/uploadCalcs.dsc"/>
+			<arg value="CONTROL=${basedir}/moduploadCalcs.ctl"/>
+		</exec>
+	</target>
+	
+	<target name="archiveProcessedFiles">
+			<echo>Copy the file(s) to the archive</echo>
+			<move todir="${sandbarDir}/other">
+				<fileset dir="${sandbarDir}/queue" includes="*"/>
+			</move>
+	</target>
+</project>
