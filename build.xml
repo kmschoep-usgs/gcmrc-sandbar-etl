@@ -3,7 +3,7 @@
 
 	<target name="areaVolCalcFileUpload">
 		<echo>Load the comma-delimited file into area_volume_calc_stage</echo>
-		<exec executable="sqlldr" failonerror="true">
+		<exec executable="sqlldr" failonerror="false">
 			<arg value="sandbar/${sandbarPassword}@${instance}"/>
 			<arg value="BAD=${basedir}/uploadCalcs.bad"/>
 			<arg value="DISCARD=${basedir}/uploadCalcs.dsc"/>
