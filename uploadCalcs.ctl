@@ -1,10 +1,10 @@
 options (skip=1)
 load data
 truncate
-trailing nullcols
 into table area_volume_calc_stage
 when dataset <> 'Dataset'
 fields terminated by ","
+trailing nullcols
 (dataset
 ,plane_height
 ,reference filler
