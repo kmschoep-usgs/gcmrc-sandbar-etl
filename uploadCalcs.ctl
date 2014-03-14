@@ -4,8 +4,6 @@ truncate
 into table area_volume_calc_stage
 when dataset <> 'Dataset'
 fields terminated by ","
-RECORDS DELIMITED BY "\n"
-trailing nullcols
 (dataset
 ,plane_height
 ,reference filler
