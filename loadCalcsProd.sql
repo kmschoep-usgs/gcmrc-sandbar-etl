@@ -18,13 +18,14 @@ select
 s.id 
 ,null 
 ,to_date(substr(acs.dataset,instr(acs.dataset, '_', 1, 3)+1),'yyyymmdd')
-,acs.volume_amt
+,case when upper(acs.volume_amt) like '%E%' then to_number(upper(acs.volume_amt),'99999999999999.999999999999999999EEEE') else to_number(acs.volume_amt) 
+end
 ,substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1)
-, ACS.PLANE_HEIGHT
-, ACS.AREA_2D_AMT 
-, ACS.AREA_3D_AMT  
-from AREA_VOLUME_CALC_stage acs, sites s
-where upper(substr(acs.dataset,instr(acs.dataset, '_', 1, 2)+1, instr(acs.dataset, '_',1,3)-instr(acs.dataset, '_', 1, 2)-1)) = S.GCMRC_SITE_ID
+, acs.plane_height
+, acs.area_2d_amt 
+, acs.area_3d_amt  
+from area_volume_calc_stage acs, sites s
+where upper(substr(acs.dataset,instr(acs.dataset, '_', 1, 2)+1, instr(acs.dataset, '_',1,3)-instr(acs.dataset, '_', 1, 2)-1)) = s.gcmrc_site_id;
 
 commit;
 

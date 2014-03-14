@@ -1,5 +1,5 @@
 <project name="sandbarETL" default="default">
-	<target name="default" depends="areaVolCalcFileUpload, archiveProcessedFiles"/>
+	<target name="default" depends="areaVolCalcFileUpload, archiveProcessedFiles, transformData"/>
 
 	<target name="areaVolCalcFileUpload">
 		<echo>Load the comma-delimited file into area_volume_calc_stage</echo>
@@ -15,5 +15,12 @@
 			<move todir="${sandbarDir}/other">
 				<fileset dir="${sandbarDir}/queue" includes="*"/>
 			</move>
+	</target>
+	<target name="transformData">
+		<echo>Load area and volume calculations into area_volume_calc</echo>
+		<exec failonerror="true" executable="sqlplus">
+			<arg value="sandbar/${sandbarPassword}@${instance}"/>
+			<arg value="@${basedir}/loadCalcsProd.sql"/>
+		</exec>
 	</target>
 </project>
