@@ -3,6 +3,7 @@ load data
 into table area_volume_calc_stage
 truncate
 fields terminated by ","
+trailing nullcols
 (dataset
 ,plane_height
 ,reference filler
