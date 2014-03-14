@@ -7,7 +7,7 @@ fields terminated by ","
 ,plane_height
 ,reference filler
 ,z_factor filler
-,area_2d
-,area_3d
-,volume
+,area_2d_amt
+,area_3d_amt
+,volume_amt
 )
