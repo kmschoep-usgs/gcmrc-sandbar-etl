@@ -1,6 +1,7 @@
 options (skip=1)
 load data
 into table area_volume_calc_stage
+when (dataset <> 'Dataset')
 truncate
 fields terminated by ","
 trailing nullcols
