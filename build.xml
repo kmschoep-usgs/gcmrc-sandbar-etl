@@ -18,13 +18,9 @@
 		</exec>
 	</target>
 	<target name="archiveProcessedFiles">
-		<echo>Copy the file(s) to the archive</echo>
-		<copy todir="${sandbarDir}/other">
+		<echo>Move the file(s) to the archive</echo>
+		<move todir="${sandbarDir}/other">
 			<fileset dir="${sandbarDir}/queue" includes="*"/>
-		</copy>
-		<echo>Delete the file(s) from the queue</echo>
-		<delete>
-			<fileset dir="${sandbarDir}/queue" includes="*"/>
-		</delete>
+		</move>
 	</target>
 </project>
