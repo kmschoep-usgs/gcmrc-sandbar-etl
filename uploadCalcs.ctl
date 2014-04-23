@@ -10,6 +10,6 @@ fields terminated by ","
 ,z_factor filler
 ,area_2d_amt "trim(:area_2d_amt)"
 ,area_3d_amt "trim(:area_3d_amt)"
-,volume_amt TERMINATED BY WHITESPACE "trim(:volume_amt)"
-,INFILE
+,volume_amt "trim(:volume_amt)"
+,file_name  TERMINATED BY WHITESPACE "trim(:INFILE)"
 )
