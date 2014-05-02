@@ -18,43 +18,54 @@ site_id
 ,next_plane_height)
 with avc_stg as
 (select 
-s.id site_id
-,null  sandbar_id
-,to_date(substr(acs.dataset,instr(acs.dataset, '_', 1, 3)+1),'yyyymmdd') calc_date
+s.site_id
+,s.sandbar_id
+,to_date(substr(acs.dataset,-8),'yyyymmdd') calc_date
 ,case when upper(acs.volume_amt) like '%E%' then to_number(upper(acs.volume_amt),'99999999999999.999999999999999999EEEE') else to_number(acs.volume_amt) 
 end volume_amt
 ,substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1) calc_type
 , acs.plane_height
 , acs.area_2d_amt 
 , acs.area_3d_amt  
-from area_volume_calc_stage acs, sites s
-where upper(substr(acs.dataset,instr(acs.dataset, '_', 1, 2)+1, instr(acs.dataset, '_',1,3)-instr(acs.dataset, '_', 1, 2)-1)) = s.gcmrc_site_id),
+from area_volume_calc_stage acs, 
+(select s.id site_id, S.GCMRC_SITE_ID, ss.sandbar_name, ss.id sandbar_id from
+sites s, SITE_SANDBAR_REL ss
+where s.id = ss.site_id(+)) s
+where upper(substr(acs.dataset,instr(acs.dataset, '_', 1, 2)+1, instr(acs.dataset, '_',1,3)-instr(acs.dataset, '_', 1, 2)-1)) = s.gcmrc_site_id
+and 
+((substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1) like '%eddy%' and
+nvl(case rtrim(replace(substr(acs.dataset,instr(acs.dataset, '_', 1, 3)+1), substr(acs.dataset,-8), null),'_') when cast('r' as nvarchar2(20)) then 'reatt' when cast('s' as nvarchar2(20)) then 'sep'  end,'x') =  nvl(S.SANDBAR_NAME,'x'))
+or  substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1) like '%chan%')),
 min_surv as
 (select 
 site_id
+, sandbar_id
 , plane_height
 , calc_date
 , calc_type
  from 
 (select
-site_id
-, plane_height
-, min(plane_height) over (partition by site_id, calc_type, calc_date) min_plane
-, calc_date
-, calc_type
-, area_2d_amt
-, area_3d_amt
-, volume_amt
-from avc_stg
-where calc_type in ('eddy','chan')) min_ph
-where site_id = min_ph.site_id and 
+astg.site_id
+,astg.sandbar_id
+, astg.plane_height
+, min(astg.plane_height) over (partition by astg.site_id, astg.sandbar_id, astg.calc_type, astg.calc_date) min_plane
+, astg.calc_date
+, astg.calc_type
+, astg.area_2d_amt
+, astg.area_3d_amt
+, astg.volume_amt
+from avc_stg astg
+where astg.calc_type in ('eddy','chan')) min_ph
+where site_id = min_ph.site_id and  
 calc_type = min_ph.calc_type and 
 calc_date = min_ph.calc_date and 
-plane_height = min_ph.min_plane
+plane_height = min_ph.min_plane and
+nvl(sandbar_id,-99) = nvl(min_ph.sandbar_id,-99)
 ) ,
 min_surf as 
 (select 
 av.site_id
+, av.sandbar_id
 , av.plane_height
 , min_surv.calc_date
 , min_surv.calc_type
@@ -64,6 +75,7 @@ av.site_id
 from avc_stg av, min_surv 
 where av.calc_type in ('mineddy','minchan')
 and av.site_id = min_surv.site_id
+and nvl(av.sandbar_id,-99) = nvl(min_surv.sandbar_id,-99)
 and replace(av.calc_type, min_surv.calc_type,null) = 'min'
 and av.plane_height = min_surv.plane_height
 ) 
