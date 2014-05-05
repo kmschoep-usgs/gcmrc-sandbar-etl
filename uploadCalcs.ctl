@@ -1,6 +1,5 @@
 options (skip=1)
 load data
-truncate
 into table area_volume_calc_stage
 when dataset <> 'Dataset'
 fields terminated by ","
