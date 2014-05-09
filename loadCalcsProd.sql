@@ -33,9 +33,23 @@ sites s, SITE_SANDBAR_REL ss
 where s.id = ss.site_id(+)) s
 where upper(substr(acs.dataset,instr(acs.dataset, '_', 1, 2)+1, instr(acs.dataset, '_',1,3)-instr(acs.dataset, '_', 1, 2)-1)) = s.gcmrc_site_id
 and 
-((substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1) like '%eddy%' and
+(substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1) like '%eddy%' and
 nvl(case rtrim(replace(substr(acs.dataset,instr(acs.dataset, '_', 1, 3)+1), substr(acs.dataset,-8), null),'_') when cast('r' as nvarchar2(20)) then 'reatt' when cast('s' as nvarchar2(20)) then 'sep'  end,'x') =  nvl(S.SANDBAR_NAME,'x'))
-or  substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1) like '%chan%')),
+union
+select 
+s.id site_id
+,null sandbar_id
+,to_date(substr(acs.dataset,-8),'yyyymmdd') calc_date
+,case when upper(acs.volume_amt) like '%E%' then to_number(upper(acs.volume_amt),'99999999999999.999999999999999999EEEE') else to_number(acs.volume_amt) 
+end volume_amt
+,substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1) calc_type
+, acs.plane_height
+, acs.area_2d_amt 
+, acs.area_3d_amt  
+from area_volume_calc_stage acs, sites s
+where upper(substr(acs.dataset,instr(acs.dataset, '_', 1, 2)+1, instr(acs.dataset, '_',1,3)-instr(acs.dataset, '_', 1, 2)-1)) = s.gcmrc_site_id
+and 
+substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1) like '%chan%'),
 min_surv as
 (select 
 site_id
@@ -88,8 +102,8 @@ av.calc_type,
 av.plane_height ,
 av.area_2d_amt ,
 av.area_3d_amt ,
-lag(av.plane_height, 1, 0) over (partition by av.site_id, av.calc_type, av.calc_date order by av.site_id, av.calc_type, av.calc_date, av.plane_height) prev_plane_height,
-nvl(lead(av.plane_height, 1) over (partition by av.site_id, av.calc_type, av.calc_date order by av.site_id, av.calc_type, av.calc_date, av.plane_height), av.plane_height) next_plane_height 
+lag(av.plane_height, 1, 0) over (partition by av.site_id, av.sandbar, av.calc_type, av.calc_date order by av.site_id, av.sandbar, av.calc_type, av.calc_date, av.plane_height) prev_plane_height,
+nvl(lead(av.plane_height, 1) over (partition by av.site_id, av.sandbar, av.calc_type, av.calc_date order by av.site_id, av.sandbar, av.calc_type, av.calc_date, av.plane_height), av.plane_height) next_plane_height 
 from avc_stg av, min_surf av2
 where av.calc_type in ('chan','eddy')
 and av.site_id = av2.site_id
