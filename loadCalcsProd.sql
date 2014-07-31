@@ -80,7 +80,7 @@ select
 surv.site_id,
 surv.sandbar_id, 
 surv.calc_date,
-surf.volume_amt - surv.volume_amt volume_amt,
+surv.volume_amt - surf.volume_amt volume_amt,
 surv.calc_type,
 surv.plane_height ,
 surv.area_2d_amt ,
