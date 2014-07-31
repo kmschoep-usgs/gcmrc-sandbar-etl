@@ -50,66 +50,50 @@ from area_volume_calc_stage acs, sites s
 where upper(substr(acs.dataset,instr(acs.dataset, '_', 1, 2)+1, instr(acs.dataset, '_',1,3)-instr(acs.dataset, '_', 1, 2)-1)) = s.gcmrc_site_id
 and 
 substr(acs.dataset,instr(acs.dataset, '\')+1, instr(acs.dataset, '_',1,2)-instr(acs.dataset, '\')-1) like '%chan%'),
-min_surv as
-(select 
-site_id
-, sandbar_id
-, plane_height
-, calc_date
-, calc_type
- from 
+surv as
 (select
 astg.site_id
 ,astg.sandbar_id
 , astg.plane_height
-, min(astg.plane_height) over (partition by astg.site_id, astg.sandbar_id, astg.calc_type, astg.calc_date) min_plane
 , astg.calc_date
 , astg.calc_type
 , astg.area_2d_amt
 , astg.area_3d_amt
 , astg.volume_amt
 from avc_stg astg
-where astg.calc_type in ('eddy','chan')) min_ph
-where site_id = min_ph.site_id and  
-calc_type = min_ph.calc_type and 
-calc_date = min_ph.calc_date and 
-plane_height = min_ph.min_plane and
-nvl(sandbar_id,-99) = nvl(min_ph.sandbar_id,-99)
+where astg.calc_type in ('eddy','chan')
 ) ,
-min_surf as 
+surf as 
 (select 
 av.site_id
 , av.sandbar_id
 , av.plane_height
-, min_surv.calc_date
-, min_surv.calc_type
+, av.calc_date
+, av.calc_type
 , av.area_2d_amt
 , av.area_3d_amt
 , av.volume_amt
-from avc_stg av, min_surv 
+from avc_stg av
 where av.calc_type in ('mineddy','minchan')
-and av.site_id = min_surv.site_id
-and nvl(av.sandbar_id,-99) = nvl(min_surv.sandbar_id,-99)
-and replace(av.calc_type, min_surv.calc_type,null) = 'min'
-and av.plane_height = min_surv.plane_height
 ) 
 select 
-av.site_id,
-av.sandbar_id, 
-av.calc_date,
-av.volume_amt - av2.volume_amt volume_amt,
-av.calc_type,
-av.plane_height ,
-av.area_2d_amt ,
-av.area_3d_amt ,
-lag(av.plane_height, 1, 0) over (partition by av.site_id, av.sandbar, av.calc_type, av.calc_date order by av.site_id, av.sandbar, av.calc_type, av.calc_date, av.plane_height) prev_plane_height,
-nvl(lead(av.plane_height, 1) over (partition by av.site_id, av.sandbar, av.calc_type, av.calc_date order by av.site_id, av.sandbar, av.calc_type, av.calc_date, av.plane_height), av.plane_height) next_plane_height 
-from avc_stg av, min_surf av2
-where av.calc_type in ('chan','eddy')
-and av.site_id = av2.site_id
-and av.calc_type = av2.calc_type
-and av.calc_date = av2.calc_date
-order by av.calc_type, av.calc_date, av.plane_height;
+surv.site_id,
+surv.sandbar_id, 
+surv.calc_date,
+surf.volume_amt - surv.volume_amt volume_amt,
+surv.calc_type,
+surv.plane_height ,
+surv.area_2d_amt ,
+surv.area_3d_amt ,
+lag(surv.plane_height, 1, 0) over (partition by surv.site_id, surv.sandbar_id, surv.calc_type, surv.calc_date order by surv.site_id, surv.sandbar_id, surv.calc_type, surv.calc_date, surv.plane_height) prev_plane_height,
+nvl(lead(surv.plane_height, 1) over (partition by surv.site_id, surv.sandbar_id, surv.calc_type, surv.calc_date order by surv.site_id, surv.sandbar_id, surv.calc_type, surv.calc_date, surv.plane_height), surv.plane_height) next_plane_height 
+from surv, surf
+where surv.calc_type in ('chan','eddy')
+and surv.site_id = surf.site_id
+and nvl(surv.sandbar_id, -9) = nvl(surf.sandbar_id,-9)
+and surv.plane_height = surf.plane_height
+and replace(surf.calc_type, surv.calc_type,null) = 'min'
+order by surv.calc_type, surv.calc_date, surv.plane_height;
 
 commit;
 
