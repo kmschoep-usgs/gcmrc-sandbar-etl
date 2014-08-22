@@ -91,6 +91,7 @@ from surv, surf
 where surv.calc_type in ('chan','eddy')
 and surv.site_id = surf.site_id
 and nvl(surv.sandbar_id, -9) = nvl(surf.sandbar_id,-9)
+and surv.calc_date = surf.calc_date
 and surv.plane_height = surf.plane_height
 and replace(surf.calc_type, surv.calc_type,null) = 'min'
 order by surv.calc_type, surv.calc_date, surv.plane_height;
