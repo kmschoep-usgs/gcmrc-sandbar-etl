@@ -7,7 +7,7 @@
 			<arg value="sandbar/${sandbarPassword}@${instance}"/>
 			<arg value="BAD=${basedir}/uploadCalcs.bad"/>
 			<arg value="DISCARD=${basedir}/uploadCalcs.dsc"/>
-			<arg value="CONTROL=${basedir}/moduploadCalcs.ctl"/>
+			<arg value="CONTROL=${basedir}/uploadCalcs.ctl"/>
 		</exec>
 	</target>
 	<target name="transformData">
