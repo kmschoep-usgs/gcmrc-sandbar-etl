@@ -1,5 +1,6 @@
 options (skip=1)
 load data
+infile 'sandbarfiles.txt'
 append
 into table area_volume_calc_stage
 when dataset <> 'Dataset'
