@@ -1,6 +1,6 @@
 options (skip=1)
-truncate
 load data
+truncate
 infile '/srv/etl/sandbar/queue/sandbarfiles.txt'
 insert
 into table area_volume_calc_stage
