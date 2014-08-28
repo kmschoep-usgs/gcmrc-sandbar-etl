@@ -1,7 +1,8 @@
 options (skip=1)
+truncate
 load data
 infile '/srv/etl/sandbar/queue/sandbarfiles.txt'
-append
+insert
 into table area_volume_calc_stage
 when dataset <> 'Dataset'
 fields terminated by ","
