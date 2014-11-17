@@ -91,11 +91,11 @@ lag(surv.plane_height, 1, 0) over (partition by surv.site_id, surv.sandbar_id, s
 nvl(lead(surv.plane_height, 1) over (partition by surv.site_id, surv.sandbar_id, surv.calc_type, surv.calc_date order by surv.site_id, surv.sandbar_id, surv.calc_type, surv.calc_date, surv.plane_height), surv.plane_height) next_plane_height 
 from surv, surf
 where surv.calc_type in ('chan','eddy')
-and surv.site_id = surf.site_id
-and nvl(surv.sandbar_id, -9) = nvl(surf.sandbar_id,-9)
-and surv.calc_date = surf.calc_date
-and surv.plane_height = surf.plane_height
-and replace(surf.calc_type, surv.calc_type,null) = 'min'
+and surv.site_id = surf.site_id(+)
+and nvl(surv.sandbar_id, -9) = nvl(surf.sandbar_id(+),-9)
+and surv.calc_date = surf.calc_date(+)
+and surv.plane_height = surf.plane_height(+)
+and replace(surf.calc_type(+), surv.calc_type,null) = 'min'
 order by surv.calc_type, surv.calc_date, surv.plane_height;
 
 commit;

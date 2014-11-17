@@ -3,8 +3,8 @@ function f_elev (p_site_id in number, p_ds in number) return number is
 p_elev number;
 
 begin
-select 
-S.STAGE_DISCHARGE_COEFF_A + S.STAGE_DISCHARGE_COEFF_B * p_ds + S.STAGE_DISCHARGE_COEFF_C * power(p_ds,2) into p_elev
+select case when p_ds = 0 then -9 else
+S.STAGE_DISCHARGE_COEFF_A + S.STAGE_DISCHARGE_COEFF_B * p_ds + S.STAGE_DISCHARGE_COEFF_C * power(p_ds,2) end into p_elev
 from sites s where S.ID = p_site_id;
 
 return p_elev;
@@ -49,7 +49,8 @@ v_8000_elev := f_elev(p_site_id, 8000);
                 area_3d_amt,
                 prev_plane_height,
                 next_plane_height,
-                max(plane_height) over (partition by site_id, sandbar_id, calc_type, calc_date) max_plane_height
+                max(plane_height) over (partition by site_id, sandbar_id, calc_type, calc_date) max_plane_height,
+                min(plane_height) over (partition by site_id, sandbar_id, calc_type, calc_date) min_plane_height
                 --max(plane_height) over (partition by site_id) max_plane_height
                 from area_volume_calc 
                 where site_id = p_site_id) ,
@@ -59,17 +60,14 @@ v_8000_elev := f_elev(p_site_id, 8000);
                 avc.sandbar_id, 
                 avc.calc_type, 
                 avc.calc_date, 
-                case when v_min_elev > max_plane_height then 0 else
-                    ((v_min_elev-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt 
-                end interp_area2d,
-                case when v_min_elev > max_plane_height then 0 else
-                    ((v_min_elev-avc.plane_height) * (lead(avc.area_3d_amt, 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_3d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_3d_amt 
-                end interp_area3d,
-                case when v_min_elev > max_plane_height then 0 else
-                    ((v_min_elev-avc.plane_height) * (lead(avc.volume_amt, 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.volume_amt)/(avc.next_plane_height-avc.plane_height)) + avc.volume_amt 
-                end interp_volume
+                ((case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt 
+                interp_area2d,
+                ((case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end-avc.plane_height) * (lead(avc.area_3d_amt, 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_3d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_3d_amt 
+                interp_area3d,
+                ((case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end-avc.plane_height) * (lead(avc.volume_amt, 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.volume_amt)/(avc.next_plane_height-avc.plane_height)) + avc.volume_amt 
+                interp_volume
                     from area_volume_calc_max avc where site_id = p_site_id
-                    and (v_min_elev between avc.prev_plane_height and avc.next_plane_height or v_min_elev >  max_plane_height)
+                    and (case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end between avc.prev_plane_height and avc.next_plane_height)
                     --and avc.prev_plane_height != 0
                     order by sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height) where interp_area2d is not null),
             interp_max_val as (
@@ -120,7 +118,7 @@ v_8000_elev := f_elev(p_site_id, 8000);
                    when p_ds_max <= 8000 then
                    (imin.interp_area2d - imax.interp_area2d) * uncert_meters_high
                    when 8000 > p_ds_min and 8000 < p_ds_max then
-                   ((imin.interp_area2d - i8k.interp_8k_area2d) * uncert_meters_high) + ((i8k.interp_8k_area2d - imax.interp_area2d ) * uncert_meters_low)
+                   ((imin.interp_area2d - nvl(i8k.interp_8k_area2d,0)) * uncert_meters_high) + ((nvl(i8k.interp_8k_area2d,0) - imax.interp_area2d ) * uncert_meters_low)
                    end error_meters
                     from interp_min_val imin, interp_max_val imax, interp_8000_val i8k
                     where imin.site_id = imax.site_id
