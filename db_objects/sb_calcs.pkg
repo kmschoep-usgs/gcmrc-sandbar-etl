@@ -27,87 +27,77 @@ v_min_elev := f_elev(p_site_id, p_ds_min);
 v_max_elev := f_elev(p_site_id, p_ds_max);  
 v_8000_elev := f_elev(p_site_id, 8000);
 
-  FOR i IN  (select site_id, 
-                sandbar_id, 
-                calc_type, 
-                calc_date, 
-                v_min_elev min_elev,
-                v_max_elev max_elev,
-                case interp_area2d when 0 then null else interp_area2d end interp_area2d,
-                case interp_area3d when 0 then null else interp_area3d end interp_area3d, 
-                case interp_volume when 0 then null else interp_volume end interp_volume,
-                case (interp_volume - error_meters) when 0 then null else interp_volume - error_meters end vol_error_low,
-                case (interp_volume + error_meters) when 0 then null else interp_volume + error_meters end vol_error_high from
-            (with area_volume_calc_max as (select
-                site_id,
-                sandbar_id,
-                calc_date,
+  FOR i IN  (with area_volume_calc_max as (select
+                av.site_id,
+                ss.sandbar_name,
+                av.calc_date,
+                av.calc_type,
                 volume_amt,
-                calc_type,
                 plane_height,
                 area_2d_amt,
                 area_3d_amt,
                 prev_plane_height,
                 next_plane_height,
-                max(plane_height) over (partition by site_id, sandbar_id, calc_type, calc_date) max_plane_height,
-                min(plane_height) over (partition by site_id, sandbar_id, calc_type, calc_date) min_plane_height
+                max(plane_height) over (partition by av.site_id, sandbar_id, calc_type, calc_date) max_plane_height,
+                min(plane_height) over (partition by av.site_id, sandbar_id, calc_type, calc_date) min_plane_height
                 --max(plane_height) over (partition by site_id) max_plane_height
-                from area_volume_calc 
-                where site_id = p_site_id) ,
+                from area_volume_calc av , site_sandbar_rel ss
+                where av.sandbar_id = ss.id(+) and
+                av.site_id = p_site_id) ,
             interp_min_val as (
                 select distinct * from 
                 (select avc.site_id,
-                avc.sandbar_id, 
+                avc.sandbar_name, 
                 avc.calc_type, 
                 avc.calc_date, 
-                ((case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt 
+                ((case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt 
                 interp_area2d,
-                ((case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end-avc.plane_height) * (lead(avc.area_3d_amt, 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_3d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_3d_amt 
+                ((case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end-avc.plane_height) * (lead(avc.area_3d_amt, 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_3d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_3d_amt 
                 interp_area3d,
-                ((case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end-avc.plane_height) * (lead(avc.volume_amt, 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.volume_amt)/(avc.next_plane_height-avc.plane_height)) + avc.volume_amt 
+                ((case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end-avc.plane_height) * (lead(avc.volume_amt, 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.volume_amt)/(avc.next_plane_height-avc.plane_height)) + avc.volume_amt 
                 interp_volume
                     from area_volume_calc_max avc where site_id = p_site_id
                     and (case when v_min_elev = -9 then min_plane_height else to_number(v_min_elev) end between avc.prev_plane_height and avc.next_plane_height)
                     --and avc.prev_plane_height != 0
-                    order by sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height) where interp_area2d is not null),
+                    order by sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height) where interp_area2d is not null),
             interp_max_val as (
                 select distinct * from 
                 (select avc.site_id,
-                avc.sandbar_id, 
+                avc.sandbar_name, 
                 avc.calc_type, 
                 avc.calc_date, 
                 case when v_max_elev > max_plane_height then 0 else
-                    ((v_max_elev-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt 
+                    ((v_max_elev-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt 
                 end interp_area2d,
                 case when v_max_elev > max_plane_height then 0 else
-                    ((v_max_elev-avc.plane_height) * (lead(avc.area_3d_amt, 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_3d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_3d_amt 
+                    ((v_max_elev-avc.plane_height) * (lead(avc.area_3d_amt, 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_3d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_3d_amt 
                 end interp_area3d,
                 case when v_max_elev > max_plane_height then 0 else
-                    ((v_max_elev-avc.plane_height) * (lead(avc.volume_amt, 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.volume_amt)/(avc.next_plane_height-avc.plane_height)) + avc.volume_amt 
+                    ((v_max_elev-avc.plane_height) * (lead(avc.volume_amt, 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.volume_amt)/(avc.next_plane_height-avc.plane_height)) + avc.volume_amt 
                 end interp_volume
                     from area_volume_calc_max avc where site_id = p_site_id 
                     and (v_max_elev between avc.prev_plane_height and avc.next_plane_height or v_max_elev >  max_plane_height) 
                     --and avc.prev_plane_height != 0
-                    order by sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height) where interp_area2d is not null),
+                    order by sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height) where interp_area2d is not null),
             interp_8000_val as (
                 select * from 
                 (select avc.site_id,
-                avc.sandbar_id, 
+                avc.sandbar_name, 
                 avc.calc_type, 
                 avc.calc_date, 
-                ((v_8000_elev-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt interp_8k_area2d
+                ((v_8000_elev-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt interp_8k_area2d
                     from area_volume_calc_max avc where site_id = p_site_id
                     and  v_8000_elev between avc.prev_plane_height and avc.next_plane_height 
                     --and avc.prev_plane_height != 0
-                    order by sandbar_id, avc.calc_type, avc.calc_date, avc.plane_height) where interp_8k_area2d is not null),
+                    order by sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height) where interp_8k_area2d is not null),
             avc2 as
                 (select distinct site_id, 
-                sandbar_id, 
+                sandbar_name, 
                 calc_type, 
                 calc_date 
-                    from area_volume_calc_max where site_id = p_site_id)
-            select imin.site_id, 
-                imin.sandbar_id, 
+                    from area_volume_calc_max where site_id = p_site_id),
+           core_q as (select imin.site_id, 
+                imin.sandbar_name, 
                 imin.calc_type, 
                 imin.calc_date, 
                 imin.interp_area2d - imax.interp_area2d interp_area2d, 
@@ -123,27 +113,338 @@ v_8000_elev := f_elev(p_site_id, 8000);
                     from interp_min_val imin, interp_max_val imax, interp_8000_val i8k
                     where imin.site_id = imax.site_id
                     and imin.site_id = i8k.site_id(+)
-                    and nvl(imin.sandbar_id,-9) = nvl(i8k.sandbar_id(+),-9)
-                    and nvl(imin.sandbar_id,-9) = nvl(imax.sandbar_id,-9)
+                    and nvl(imin.sandbar_name,'-9') = nvl(i8k.sandbar_name(+),'-9')
+                    and nvl(imin.sandbar_name,'-9') = nvl(imax.sandbar_name,'-9')
                     and imin.calc_type = imax.calc_type
                     and imin.calc_type = i8k.calc_type(+)
                     and imin.calc_date = imax.calc_date
                     and imin.calc_date = i8k.calc_date(+)
                 union
-                select site_id, sandbar_id, calc_type, calc_date, null, null, null, null from avc2
+                select site_id, sandbar_name, calc_type, calc_date, null, null, null, null from avc2
                 minus
-                select imin.site_id, imin.sandbar_id, imin.calc_type, imin.calc_date, null, null, null, null 
+                select imin.site_id, imin.sandbar_name, imin.calc_type, imin.calc_date, null, null, null, null 
                     from interp_min_val imin, interp_max_val imax
                     where imin.site_id = imax.site_id
-                    and nvl(imin.sandbar_id,-9) = nvl(imax.sandbar_id,-9)
+                    and nvl(imin.sandbar_name,'-9') = nvl(imax.sandbar_name,'-9')
                     and imin.calc_type = imax.calc_type
                     and imin.calc_date = imax.calc_date
-                    order by site_id, sandbar_id nulls first, calc_type, calc_date
-       )
+                    order by site_id, sandbar_name nulls first, calc_type, calc_date)
+                select site_id,
+                calc_date, 
+                min_elev,
+                max_elev,
+                max(eddy_int_area2d) eddy_int_area,
+                max(eddy_s_int_area2d) eddy_s_int_area,
+                max(eddy_r_int_area2d) eddy_r_int_area,
+                case when not (max(eddy_s_int_area2d) is null and max(eddy_r_int_area2d) is null) then 
+                    nvl(max(eddy_s_int_area2d),0) + nvl(max(eddy_r_int_area2d),0) 
+                end sum_reatt_sep_area,
+                max(eddy_int_volume) eddy_int_volume,
+                max(eddy_s_int_volume) eddy_s_int_volume,
+                max(eddy_r_int_volume) eddy_r_int_volume,
+                case when not (max(eddy_s_int_volume) is null and max(eddy_r_int_volume) is null) then 
+                    nvl(max(eddy_s_int_volume),0) + nvl(max(eddy_r_int_volume),0) 
+                end sum_reatt_sep_vol,
+                max(eddy_vol_error_low) eddy_vol_error_low,
+                max(eddy_s_vol_error_low) eddy_s_vol_error_low,
+                max(eddy_r_vol_error_low) eddy_r_vol_error_low,
+                case when not (max(eddy_s_vol_error_low) is null and max(eddy_r_vol_error_low) is null) then
+                    nvl(max(eddy_s_vol_error_low),0) + nvl(max(eddy_r_vol_error_low),0) 
+                end sum_reatt_sep_vel, 
+                max(eddy_vol_error_high) eddy_vol_error_high,
+                max(eddy_s_vol_error_high) eddy_s_vol_error_high,
+                max(eddy_r_vol_error_high) eddy_r_vol_error_high,
+                case when not (max(eddy_s_vol_error_high) is null and max(eddy_r_vol_error_high) is null) then
+                    nvl(max(eddy_s_vol_error_high),0) + nvl(max(eddy_r_vol_error_high),0) 
+                end sum_reatt_sep_veh, 
+                max(chan_int_area) chan_int_area,
+                max(chan_int_volume) chan_int_volume,
+                max(chan_vol_error_low) chan_vol_error_low,
+                max(chan_vol_error_high) chan_vol_error_high, 
+                case when not (max(chan_int_area) is null and max(eddy_int_area2d) is null) then 
+                    nvl(max(chan_int_area),0) + nvl(max(eddy_int_area2d),0)
+                end ts_int_area,
+                case when not (max(chan_int_volume) is null and max(eddy_int_volume) is null) then
+                     nvl(max(chan_int_volume),0) + nvl(max(eddy_int_volume),0)
+                end ts_int_volume ,
+                case when not (max(chan_vol_error_low) is null and  max(eddy_vol_error_low) is null) then
+                     nvl(max(chan_vol_error_low),0) + nvl(max(eddy_vol_error_low),0)
+                end ts_vol_error_low,
+                case when not (max(chan_vol_error_high) is null and  max(eddy_vol_error_high) is null) then
+                     nvl(max(chan_vol_error_high),0) + nvl(max(eddy_vol_error_high),0)
+                end ts_vol_error_high
+                from (
+                select site_id, 
+                --sandbar_name,  
+                calc_date, 
+                v_min_elev min_elev,
+                v_max_elev max_elev,
+                case when calc_type = 'eddy' and sandbar_name is null then
+                    case interp_area2d when 0 then null else interp_area2d end end eddy_int_area2d,
+                case when calc_type = 'eddy' and sandbar_name = 'sep' then
+                    case interp_area2d when 0 then null else interp_area2d end end eddy_s_int_area2d,
+                case when calc_type = 'eddy' and sandbar_name = 'reatt' then
+                    case interp_area2d when 0 then null else interp_area2d end end eddy_r_int_area2d,
+                case when calc_type = 'eddy' and sandbar_name is null then
+                    case interp_volume when 0 then null else interp_volume end end eddy_int_volume,
+                case when calc_type = 'eddy' and sandbar_name = 'sep' then
+                    case interp_volume when 0 then null else interp_volume end end eddy_s_int_volume,
+                case when calc_type = 'eddy' and sandbar_name = 'reatt' then
+                    case interp_volume when 0 then null else interp_volume end end eddy_r_int_volume,
+                case when calc_type = 'eddy' and sandbar_name is null then
+                    case (interp_volume - error_meters) when 0 then null else interp_volume - error_meters end end  eddy_vol_error_low,
+                case when calc_type = 'eddy' and sandbar_name = 'sep' then
+                    case (interp_volume - error_meters) when 0 then null else interp_volume - error_meters end end  eddy_s_vol_error_low,
+                case when calc_type = 'eddy' and sandbar_name = 'reatt' then
+                    case (interp_volume - error_meters) when 0 then null else interp_volume - error_meters end end  eddy_r_vol_error_low,
+                case when calc_type = 'eddy' and sandbar_name is null then
+                    case (interp_volume + error_meters) when 0 then null else interp_volume + error_meters end end eddy_vol_error_high,
+                case when calc_type = 'eddy' and sandbar_name = 'sep' then
+                    case (interp_volume + error_meters) when 0 then null else interp_volume + error_meters end end eddy_s_vol_error_high,
+                case when calc_type = 'eddy' and sandbar_name = 'reatt' then
+                    case (interp_volume + error_meters) when 0 then null else interp_volume + error_meters end end eddy_r_vol_error_high,
+                case when calc_type = 'chan' then
+                    case interp_area2d when 0 then null else interp_area2d end end chan_int_area, 
+                case when calc_type = 'chan' then
+                    case interp_volume when 0 then null else interp_volume end end chan_int_volume,
+                case when calc_type = 'chan' then
+                    case (interp_volume - error_meters) when 0 then null else interp_volume - error_meters end end  chan_vol_error_low,
+                case when calc_type = 'chan' then
+                    case (interp_volume + error_meters) when 0 then null else interp_volume + error_meters end end chan_vol_error_high
+                         from
+                core_q
+                order by site_id, calc_date, min_elev)
+                group by site_id,
+                calc_date, 
+                min_elev,
+                max_elev
+                order by site_id, calc_date, min_elev
        ) LOOP
     l_tab.extend;
-    l_tab(l_tab.last) := t_av_row(i.site_id, i.sandbar_id, i.calc_type, i.calc_date, i.min_elev, i.max_elev, i.interp_area2d, i.interp_area3d, i.interp_volume, i.vol_error_low, i.vol_error_high);
+    l_tab(l_tab.last) := t_av_row(i.site_id  
+  ,i.calc_date
+  ,i.min_elev 
+  ,i.max_elev 
+  ,i.eddy_int_area  
+  ,i.eddy_s_int_area 
+  ,i.eddy_r_int_area 
+  ,i.sum_reatt_sep_area 
+  ,i.eddy_int_volume 
+  ,i.eddy_s_int_volume 
+  ,i.eddy_r_int_volume 
+  ,i.sum_reatt_sep_vol 
+  ,i.eddy_vol_error_low 
+  ,i.eddy_s_vol_error_low 
+  ,i.eddy_r_vol_error_low 
+  ,i.sum_reatt_sep_vel 
+  ,i.eddy_vol_error_high 
+  ,i.eddy_s_vol_error_high 
+  ,i.eddy_r_vol_error_high 
+  ,i.sum_reatt_sep_veh 
+  ,i.chan_int_area 
+  ,i.chan_int_volume 
+  ,i.chan_vol_error_low 
+  ,i.chan_vol_error_high 
+  ,i.ts_int_area 
+  ,i.ts_int_volume 
+  ,i.ts_vol_error_low 
+  ,i.ts_vol_error_high);
   END LOOP;
+  
+  /*    QUERY REDO
+    with area_volume_calc_max as (select
+                av.site_id,
+                ss.sandbar_name,
+                av.calc_date,
+                av.calc_type,
+                volume_amt,
+                plane_height,
+                area_2d_amt,
+                area_3d_amt,
+                prev_plane_height,
+                next_plane_height,
+                max(plane_height) over (partition by av.site_id, sandbar_id, calc_type, calc_date) max_plane_height,
+                min(plane_height) over (partition by av.site_id, sandbar_id, calc_type, calc_date) min_plane_height
+                --max(plane_height) over (partition by site_id) max_plane_height
+                from area_volume_calc av , site_sandbar_rel ss
+                where av.sandbar_id = ss.id(+) and
+                av.site_id = :p_site_id) ,
+            interp_min_val as (
+                select distinct * from 
+                (select avc.site_id,
+                avc.sandbar_name, 
+                avc.calc_type, 
+                avc.calc_date, 
+                ((case when :v_min_elev = -9 then min_plane_height else to_number(:v_min_elev) end-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt 
+                interp_area2d,
+                ((case when :v_min_elev = -9 then min_plane_height else to_number(:v_min_elev) end-avc.plane_height) * (lead(avc.area_3d_amt, 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_3d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_3d_amt 
+                interp_area3d,
+                ((case when :v_min_elev = -9 then min_plane_height else to_number(:v_min_elev) end-avc.plane_height) * (lead(avc.volume_amt, 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.volume_amt)/(avc.next_plane_height-avc.plane_height)) + avc.volume_amt 
+                interp_volume
+                    from area_volume_calc_max avc where site_id = :p_site_id
+                    and (case when :v_min_elev = -9 then min_plane_height else to_number(:v_min_elev) end between avc.prev_plane_height and avc.next_plane_height)
+                    --and avc.prev_plane_height != 0
+                    order by sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height) where interp_area2d is not null),
+            interp_max_val as (
+                select distinct * from 
+                (select avc.site_id,
+                avc.sandbar_name, 
+                avc.calc_type, 
+                avc.calc_date, 
+                case when :v_max_elev > max_plane_height then 0 else
+                    ((:v_max_elev-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt 
+                end interp_area2d,
+                case when :v_max_elev > max_plane_height then 0 else
+                    ((:v_max_elev-avc.plane_height) * (lead(avc.area_3d_amt, 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_3d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_3d_amt 
+                end interp_area3d,
+                case when :v_max_elev > max_plane_height then 0 else
+                    ((:v_max_elev-avc.plane_height) * (lead(avc.volume_amt, 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.volume_amt)/(avc.next_plane_height-avc.plane_height)) + avc.volume_amt 
+                end interp_volume
+                    from area_volume_calc_max avc where site_id = :p_site_id 
+                    and (:v_max_elev between avc.prev_plane_height and avc.next_plane_height or :v_max_elev >  max_plane_height) 
+                    --and avc.prev_plane_height != 0
+                    order by sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height) where interp_area2d is not null),
+            interp_8000_val as (
+                select * from 
+                (select avc.site_id,
+                avc.sandbar_name, 
+                avc.calc_type, 
+                avc.calc_date, 
+                ((:v_8000_elev-avc.plane_height) * (lead(avc.area_2d_amt , 1) over (partition by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date order by avc.site_id, avc.sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height)-avc.area_2d_amt)/(avc.next_plane_height-avc.plane_height)) + avc.area_2d_amt interp_8k_area2d
+                    from area_volume_calc_max avc where site_id = :p_site_id
+                    and  :v_8000_elev between avc.prev_plane_height and avc.next_plane_height 
+                    --and avc.prev_plane_height != 0
+                    order by sandbar_name, avc.calc_type, avc.calc_date, avc.plane_height) where interp_8k_area2d is not null),
+            avc2 as
+                (select distinct site_id, 
+                sandbar_name, 
+                calc_type, 
+                calc_date 
+                    from area_volume_calc_max where site_id = :p_site_id),
+           core_q as (select imin.site_id, 
+                imin.sandbar_name, 
+                imin.calc_type, 
+                imin.calc_date, 
+                imin.interp_area2d - imax.interp_area2d interp_area2d, 
+                imin.interp_area3d - imax.interp_area3d interp_area3d, 
+                imin.interp_volume - imax.interp_volume  interp_volume,
+                case when :p_ds_min >= 8000 then 
+                   (imin.interp_area2d - imax.interp_area2d) * :uncert_meters_low
+                   when :p_ds_max <= 8000 then
+                   (imin.interp_area2d - imax.interp_area2d) * :uncert_meters_high
+                   when 8000 > :p_ds_min and 8000 < :p_ds_max then
+                   ((imin.interp_area2d - nvl(i8k.interp_8k_area2d,0)) * :uncert_meters_high) + ((nvl(i8k.interp_8k_area2d,0) - imax.interp_area2d ) * :uncert_meters_low)
+                   end error_meters
+                    from interp_min_val imin, interp_max_val imax, interp_8000_val i8k
+                    where imin.site_id = imax.site_id
+                    and imin.site_id = i8k.site_id(+)
+                    and nvl(imin.sandbar_name,'-9') = nvl(i8k.sandbar_name(+),'-9')
+                    and nvl(imin.sandbar_name,'-9') = nvl(imax.sandbar_name,'-9')
+                    and imin.calc_type = imax.calc_type
+                    and imin.calc_type = i8k.calc_type(+)
+                    and imin.calc_date = imax.calc_date
+                    and imin.calc_date = i8k.calc_date(+)
+                union
+                select site_id, sandbar_name, calc_type, calc_date, null, null, null, null from avc2
+                minus
+                select imin.site_id, imin.sandbar_name, imin.calc_type, imin.calc_date, null, null, null, null 
+                    from interp_min_val imin, interp_max_val imax
+                    where imin.site_id = imax.site_id
+                    and nvl(imin.sandbar_name,'-9') = nvl(imax.sandbar_name,'-9')
+                    and imin.calc_type = imax.calc_type
+                    and imin.calc_date = imax.calc_date
+                    order by site_id, sandbar_name nulls first, calc_type, calc_date)
+                select site_id,
+                calc_date, 
+                min_elev,
+                max_elev,
+                max(eddy_int_area2d) eddy_int_area,
+                max(eddy_s_int_area2d) eddy_s_int_area,
+                max(eddy_r_int_area2d) eddy_r_int_area,
+                case when not (max(eddy_s_int_area2d) is null and max(eddy_r_int_area2d) is null) then 
+                    nvl(max(eddy_s_int_area2d),0) + nvl(max(eddy_r_int_area2d),0) 
+                end sum_reatt_sep_area,
+                max(eddy_int_volume) eddy_int_volume,
+                max(eddy_s_int_volume) eddy_s_int_volume,
+                max(eddy_r_int_volume) eddy_r_int_volume,
+                case when not (max(eddy_s_int_volume) is null and max(eddy_r_int_volume) is null) then 
+                    nvl(max(eddy_s_int_volume),0) + nvl(max(eddy_r_int_volume),0) 
+                end sum_reatt_sep_vol,
+                max(eddy_vol_error_low) eddy_vol_error_low,
+                max(eddy_s_vol_error_low) eddy_s_vol_error_low,
+                max(eddy_r_vol_error_low) eddy_r_vol_error_low,
+                case when not (max(eddy_s_vol_error_low) is null and max(eddy_r_vol_error_low) is null) then
+                    nvl(max(eddy_s_vol_error_low),0) + nvl(max(eddy_r_vol_error_low),0) 
+                end sum_reatt_sep_vel, 
+                max(eddy_vol_error_high) eddy_vol_error_high,
+                max(eddy_s_vol_error_high) eddy_s_vol_error_high,
+                max(eddy_r_vol_error_high) eddy_r_vol_error_high,
+                case when not (max(eddy_s_vol_error_high) is null and max(eddy_r_vol_error_high) is null) then
+                    nvl(max(eddy_s_vol_error_high),0) + nvl(max(eddy_r_vol_error_high),0) 
+                end sum_reatt_sep_veh, 
+                max(chan_int_area) chan_int_area,
+                max(chan_int_volume) chan_int_volume,
+                max(chan_vol_error_low) chan_vol_error_low,
+                max(chan_vol_error_high) chan_vol_error_high, 
+                case when not (max(chan_int_area) is null and max(eddy_int_area2d) is null) then 
+                    nvl(max(chan_int_area),0) + nvl(max(eddy_int_area2d),0)
+                end ts_int_area,
+                case when not (max(chan_int_volume) is null and max(eddy_int_volume) is null) then
+                     nvl(max(chan_int_volume),0) + nvl(max(eddy_int_volume),0)
+                end ts_int_volume ,
+                case when not (max(chan_vol_error_low) is null and  max(eddy_vol_error_low) is null) then
+                     nvl(max(chan_vol_error_low),0) + nvl(max(eddy_vol_error_low),0)
+                end ts_vol_error_low,
+                case when not (max(chan_vol_error_high) is null and  max(eddy_vol_error_high) is null) then
+                     nvl(max(chan_vol_error_high),0) + nvl(max(eddy_vol_error_high),0)
+                end ts_vol_error_high
+                from (
+                select site_id, 
+                --sandbar_name,  
+                calc_date, 
+                :v_min_elev min_elev,
+                :v_max_elev max_elev,
+                case when calc_type = 'eddy' and sandbar_name is null then
+                    case interp_area2d when 0 then null else interp_area2d end end eddy_int_area2d,
+                case when calc_type = 'eddy' and sandbar_name = 'sep' then
+                    case interp_area2d when 0 then null else interp_area2d end end eddy_s_int_area2d,
+                case when calc_type = 'eddy' and sandbar_name = 'reatt' then
+                    case interp_area2d when 0 then null else interp_area2d end end eddy_r_int_area2d,
+                case when calc_type = 'eddy' and sandbar_name is null then
+                    case interp_volume when 0 then null else interp_volume end end eddy_int_volume,
+                case when calc_type = 'eddy' and sandbar_name = 'sep' then
+                    case interp_volume when 0 then null else interp_volume end end eddy_s_int_volume,
+                case when calc_type = 'eddy' and sandbar_name = 'reatt' then
+                    case interp_volume when 0 then null else interp_volume end end eddy_r_int_volume,
+                case when calc_type = 'eddy' and sandbar_name is null then
+                    case (interp_volume - error_meters) when 0 then null else interp_volume - error_meters end end  eddy_vol_error_low,
+                case when calc_type = 'eddy' and sandbar_name = 'sep' then
+                    case (interp_volume - error_meters) when 0 then null else interp_volume - error_meters end end  eddy_s_vol_error_low,
+                case when calc_type = 'eddy' and sandbar_name = 'reatt' then
+                    case (interp_volume - error_meters) when 0 then null else interp_volume - error_meters end end  eddy_r_vol_error_low,
+                case when calc_type = 'eddy' and sandbar_name is null then
+                    case (interp_volume + error_meters) when 0 then null else interp_volume + error_meters end end eddy_vol_error_high,
+                case when calc_type = 'eddy' and sandbar_name = 'sep' then
+                    case (interp_volume + error_meters) when 0 then null else interp_volume + error_meters end end eddy_s_vol_error_high,
+                case when calc_type = 'eddy' and sandbar_name = 'reatt' then
+                    case (interp_volume + error_meters) when 0 then null else interp_volume + error_meters end end eddy_r_vol_error_high,
+                case when calc_type = 'chan' then
+                    case interp_area2d when 0 then null else interp_area2d end end chan_int_area, 
+                case when calc_type = 'chan' then
+                    case interp_volume when 0 then null else interp_volume end end chan_int_volume,
+                case when calc_type = 'chan' then
+                    case (interp_volume - error_meters) when 0 then null else interp_volume - error_meters end end  chan_vol_error_low,
+                case when calc_type = 'chan' then
+                    case (interp_volume + error_meters) when 0 then null else interp_volume + error_meters end end chan_vol_error_high
+                         from
+                core_q
+                order by site_id, calc_date, min_elev)
+                group by site_id,
+                calc_date, 
+                min_elev,
+                max_elev
+                order by site_id, calc_date, min_elev
+                */
 
   RETURN l_tab;
 END;
