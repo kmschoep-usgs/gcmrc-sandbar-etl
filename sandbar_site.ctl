@@ -1,6 +1,6 @@
 options (skip=1)
 load data
-infile 'test.txt'
+
 insert
 into table area_volume_calc_stage
 truncate
