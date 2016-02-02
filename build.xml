@@ -10,6 +10,15 @@
 			<arg value="CONTROL=${basedir}/uploadCalcs.ctl"/>
 		</exec>
 	</target>
+	<target name="areaVolCalcSiteUpload">
+			<echo>Load the comma-delimited file into area_volume_calc_stage</echo>
+			<exec executable="sqlldr" failonerror="false">
+				<arg value="sandbar/${sandbarPassword}@${instance}"/>
+				<arg value="BAD=${basedir}/${fileName}.bad"/>
+				<arg value="DISCARD=${basedir}/${fileName}.dsc"/>
+				<arg value="CONTROL=${basedir}/${fileName}.ctl"/>
+			</exec>
+		</target>
 	<target name="transformData">
 		<echo>Load area and volume calculations into area_volume_calc</echo>
 		<exec failonerror="true" executable="sqlplus">
